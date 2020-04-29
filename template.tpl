@@ -120,7 +120,7 @@ const log = require('logToConsole');
 const scriptUrl = 'https://sak.userreport.com/' +
                   encodeUriComponent(data.publisherId) +
                   '/launcher.js' +
-                  (data.iabConsent ? '?iab_consent=' + data.iabConsentString : '');
+                  (data.iabConsent ? '?iab_consent=' + encodeUriComponent(data.iabConsentString) : '');
 
 const urq = createQueue('_urq');
 
