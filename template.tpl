@@ -11,8 +11,11 @@ ___INFO___
 {
   "type": "TAG",
   "id": "cvt_temp_public_id",
-  "__wm": "VGVtcGxhdGUtQXV0aG9yX0F1ZGllbmNlUHJvamVjdFVzZXJSZXBvcnQtU2ltby1BaGF2YQ==",
-  "categories": ["ANALYTICS", "SURVEY"],
+  "__wm": "VGVtcGxhdGUtQXV0aG9yX0F1ZGllbmNlUHJvamVjdFVzZXJSZXBvcnQtU2ltby1BaGF2YQ\u003d\u003d",
+  "categories": [
+    "ANALYTICS",
+    "SURVEY"
+  ],
   "version": 1,
   "securityGroups": [],
   "displayName": "AudienceProject UserReport",
@@ -105,6 +108,25 @@ ___TEMPLATE_PARAMETERS___
       }
     ],
     "valueHint": "00000000-1111-4000-2222-333333333333"
+  },
+  {
+    "type": "SELECT",
+    "name": "anonymous",
+    "displayName": "Anonymous Measurement (beta)",
+    "macrosInSelect": true,
+    "selectItems": [
+      {
+        "value": true,
+        "displayValue": "True"
+      },
+      {
+        "value": false,
+        "displayValue": "False"
+      }
+    ],
+    "simpleValueType": true,
+    "defaultValue": false,
+    "help": "If this is set to \u003cstrong\u003eTrue\u003c/strong\u003e (or a variable that returns \u003cstrong\u003etrue\u003c/strong\u003e), the calls will be routed to a new endpoint which preserves anonymity and doesn\u0027t read or write cookies."
   }
 ]
 
@@ -117,12 +139,16 @@ const createQueue = require('createQueue');
 const encodeUriComponent = require('encodeUriComponent');
 const log = require('logToConsole');
 
-const scriptUrl = 'https://sak.userreport.com/' +
+const domain = (data.anonymous === true || data.anonymous === 'true') ? 'sak.dnt-userreport.com' : 'sak.userreport.com';
+
+const scriptUrl = 'https://' + domain + '/' +
                   encodeUriComponent(data.publisherId) +
                   '/launcher.js' +
                   (data.iabConsent ? '?iab_consent=' + encodeUriComponent(data.iabConsentString) : '');
 
 const urq = createQueue('_urq');
+
+urq(['setAnonymousTracking', (data.anonymous === true || data.anonymous === 'true')]);
 
 if (data.tagType === 'trackSection') urq(['trackSectionPageView', data.sectionId]);
 
@@ -226,6 +252,10 @@ ___WEB_PERMISSIONS___
               {
                 "type": 1,
                 "string": "https://sak.userreport.com/*/launcher.js*"
+              },
+              {
+                "type": 1,
+                "string": "https://sak.dnt-userreport.com/*/launcher.js*"
               }
             ]
           }
@@ -291,15 +321,48 @@ scenarios:
 
     // Verify that the tag finished successfully.
     assertApi('gtmOnSuccess').wasCalled();
+- name: Anonymous mode loads script from new domain
+  code: |-
+    let success, failure;
+
+    mockData.anonymous = true;
+
+    const scriptUrl = 'https://sak.dnt-userreport.com/' + mockData.publisherId + scriptLib + (mockData.iabConsent ? iabParam + mockData.iabConsentString : '');
+
+    // Call runCode to run the template's code.
+    runCode(mockData);
+
+    // Verify that the tag finished successfully.
+    assertApi('injectScript').wasCalledWith(scriptUrl, success, failure, 'userreport');
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Anonymous mode calls setAnonymousMeasurement correctly
+  code: |-
+    let success, failure;
+
+    mock('createQueue', q => {
+      return arg => {
+        if (arg[0] === 'setAnonymousTracking') {
+          assertThat(arg[1], 'setAnonymousTracking called with invalid value').isEqualTo(true);
+        }
+      };
+    });
+    mockData.anonymous = true;
+
+    // Call runCode to run the template's code.
+    runCode(mockData);
+
+    // Verify that the tag finished successfully.
+    assertApi('gtmOnSuccess').wasCalled();
 setup: "const getType = require('getType');\n\nconst mockData = {\n  publisherId:\
   \ 'publisherId',\n  iabConsent: false,  \n  iabConsentString: 'abcdefgh',\n  tagType:\
-  \ 'init',\n  sectionId: 'sectionId'\n};\n\nconst scriptHost = 'https://sak.userreport.com/';\n\
-  const scriptLib = '/launcher.js';\nconst iabParam = '?iab_consent=';\n\nmock('injectScript',\
-  \ (url, onsuccess, onfailure) => {\n  success = onsuccess;\n  failure = onfailure;\n\
-  \  onsuccess();\n});\n\nmock('createQueue', q => {\n  return arg => {\n    if (getType(arg)\
-  \ !== 'array') fail('Non-array pushed into _urq');\n    if (arg[0] === 'trackSectionPageView'\
-  \ && arg[1] !== mockData.sectionId) fail('Failed to call trackSectionPageView with\
-  \ section ID from tag');\n  };\n});"
+  \ 'init',\n  sectionId: 'sectionId',\n  anonymous: false\n};\n\nconst scriptHost\
+  \ = 'https://sak.userreport.com/';\nconst scriptLib = '/launcher.js';\nconst iabParam\
+  \ = '?iab_consent=';\n\nmock('injectScript', (url, onsuccess, onfailure) => {\n\
+  \  success = onsuccess;\n  failure = onfailure;\n  onsuccess();\n});\n\nmock('createQueue',\
+  \ q => {\n  return arg => {\n    if (getType(arg) !== 'array') fail('Non-array pushed\
+  \ into _urq');\n    if (arg[0] === 'trackSectionPageView' && arg[1] !== mockData.sectionId)\
+  \ fail('Failed to call trackSectionPageView with section ID from tag');\n  };\n\
+  });"
 
 
 ___NOTES___
