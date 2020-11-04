@@ -63,12 +63,12 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "defaultValue": "BOv_CmhOv_CmhAAABBENDAiAAAAYqABAMUA",
         "valueValidators": [
           {
             "type": "NON_EMPTY"
           }
-        ]
+        ],
+        "valueHint": "BOsw94_Osw94_AOABCENC2AAAAAtGAAA"
       }
     ]
   },
@@ -134,23 +134,25 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_WEB_TEMPLATE___
 
 // Load APIs
-const injectScript = require('injectScript');
 const createQueue = require('createQueue');
+const decodeUriComponent = require('decodeUriComponent');
 const encodeUriComponent = require('encodeUriComponent');
+const injectScript = require('injectScript');
 const log = require('logToConsole');
 
 const domain = (data.anonymous === true || data.anonymous === 'true') ? 'sak.dnt-userreport.com' : 'sak.userreport.com';
 
 const scriptUrl = 'https://' + domain + '/' +
                   encodeUriComponent(data.publisherId) +
-                  '/launcher.js' +
-                  (data.iabConsent ? '?iab_consent=' + encodeUriComponent(data.iabConsentString) : '');
+                  '/launcher.js';
 
-const urq = createQueue('_urq');
+const apl = createQueue('audienceProjectLayer');
 
-urq(['setAnonymousTracking', (data.anonymous === true || data.anonymous === 'true')]);
+apl(['setAnonymousTracking', (data.anonymous === true || data.anonymous === 'true')]);
 
-if (data.tagType === 'trackSection') urq(['trackSectionPageView', data.sectionId]);
+apl(['setConsents', {tcStringV1: data.anonymous === true || !data.iabConsent ? '' : data.iabConsentString}]);
+
+if (data.tagType === 'trackSection') apl(['trackSectionPageView', data.sectionId]);
 
 injectScript(scriptUrl, data.gtmOnSuccess, data.gtmOnFailure, 'userreport');
 
@@ -211,7 +213,7 @@ ___WEB_PERMISSIONS___
                 "mapValue": [
                   {
                     "type": 1,
-                    "string": "_urq"
+                    "string": "audienceProjectLayer"
                   },
                   {
                     "type": 8,
@@ -277,8 +279,15 @@ scenarios:
   code: |-
     let success, failure;
 
-    const scriptUrl = scriptHost + mockData.publisherId + scriptLib + (mockData.iabConsent ? iabParam + mockData.iabConsentString : '');
+    mock('createQueue', q => {
+      return arg => {
+        if (arg[0] === 'setConsents') {
+          assertThat(arg[1].tcStringV1, 'setConsents called with non-empty value').isEqualTo('');
+        }
+      };
+    });
 
+    const scriptUrl = scriptHost + mockData.publisherId + scriptLib;
 
     // Call runCode to run the template's code.
     runCode(mockData);
@@ -292,7 +301,15 @@ scenarios:
 
     mockData.iabConsent = true;
 
-    const scriptUrl = scriptHost + mockData.publisherId + scriptLib + (mockData.iabConsent ? iabParam + mockData.iabConsentString : '');
+    mock('createQueue', q => {
+      return arg => {
+        if (arg[0] === 'setConsents') {
+          assertThat(arg[1].tcStringV1, 'setConsents called with incorrect consent string').isEqualTo(mockData.iabConsentString);
+        }
+      };
+    });
+
+    const scriptUrl = scriptHost + mockData.publisherId + scriptLib;
 
     // Call runCode to run the template's code.
     runCode(mockData);
@@ -308,7 +325,7 @@ scenarios:
     runCode(mockData);
 
     // Verify that the tag finished successfully.
-    assertApi('createQueue').wasCalledWith('_urq');
+    assertApi('createQueue').wasCalledWith('audienceProjectLayer');
     assertApi('gtmOnSuccess').wasCalled();
 - name: trackSectionPageView is pushed into command queue
   code: |-
@@ -327,7 +344,7 @@ scenarios:
 
     mockData.anonymous = true;
 
-    const scriptUrl = 'https://sak.dnt-userreport.com/' + mockData.publisherId + scriptLib + (mockData.iabConsent ? iabParam + mockData.iabConsentString : '');
+    const scriptUrl = 'https://sak.dnt-userreport.com/' + mockData.publisherId + scriptLib;
 
     // Call runCode to run the template's code.
     runCode(mockData);
@@ -335,7 +352,7 @@ scenarios:
     // Verify that the tag finished successfully.
     assertApi('injectScript').wasCalledWith(scriptUrl, success, failure, 'userreport');
     assertApi('gtmOnSuccess').wasCalled();
-- name: Anonymous mode calls setAnonymousMeasurement correctly
+- name: Anonymous mode calls setAnonymousTracking and setConsents correctly
   code: |-
     let success, failure;
 
@@ -343,6 +360,9 @@ scenarios:
       return arg => {
         if (arg[0] === 'setAnonymousTracking') {
           assertThat(arg[1], 'setAnonymousTracking called with invalid value').isEqualTo(true);
+        }
+        if (arg[0] === 'setConsents') {
+          assertThat(arg[1].tcStringV1, 'setConsents called with non-empty string').isEqualTo('');
         }
       };
     });
@@ -356,13 +376,12 @@ scenarios:
 setup: "const getType = require('getType');\n\nconst mockData = {\n  publisherId:\
   \ 'publisherId',\n  iabConsent: false,  \n  iabConsentString: 'abcdefgh',\n  tagType:\
   \ 'init',\n  sectionId: 'sectionId',\n  anonymous: false\n};\n\nconst scriptHost\
-  \ = 'https://sak.userreport.com/';\nconst scriptLib = '/launcher.js';\nconst iabParam\
-  \ = '?iab_consent=';\n\nmock('injectScript', (url, onsuccess, onfailure) => {\n\
-  \  success = onsuccess;\n  failure = onfailure;\n  onsuccess();\n});\n\nmock('createQueue',\
-  \ q => {\n  return arg => {\n    if (getType(arg) !== 'array') fail('Non-array pushed\
-  \ into _urq');\n    if (arg[0] === 'trackSectionPageView' && arg[1] !== mockData.sectionId)\
-  \ fail('Failed to call trackSectionPageView with section ID from tag');\n  };\n\
-  });"
+  \ = 'https://sak.userreport.com/';\nconst scriptLib = '/launcher.js';\n\nmock('injectScript',\
+  \ (url, onsuccess, onfailure) => {\n  success = onsuccess;\n  failure = onfailure;\n\
+  \  onsuccess();\n});\n\nmock('createQueue', q => {\n  return arg => {\n    if (getType(arg)\
+  \ !== 'array') fail('Non-array pushed into audienceProjectLayer');\n    if (arg[0]\
+  \ === 'trackSectionPageView' && arg[1] !== mockData.sectionId) fail('Failed to call\
+  \ trackSectionPageView with section ID from tag');\n  };\n});"
 
 
 ___NOTES___
