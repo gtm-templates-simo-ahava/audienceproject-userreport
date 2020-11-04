@@ -2,8 +2,10 @@ homepage: "https://www.simoahava.com/"
 documentation: "https://www.simoahava.com/custom-templates/audienceproject-userreport/"
 versions:
   # Latest version
+  - sha: 07df2720ef39530d49fc6f47410d5a78c00ec00c
+    changeNotes: Update template to work with latest version of Anonymous Measurement.
+  # Older versions
   - sha: 1050d220b97c509b5490aefc61d4c1b60baf1f09
     changeNotes: Add option for Anonymous Measurement.
-  # Older versions
   - sha: 94f0d0ac259287584e4907b439cc8833fbcdb79d
     changeNotes: Initial release
