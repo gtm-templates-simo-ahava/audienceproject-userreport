@@ -144,7 +144,7 @@ const domain = (data.anonymous === true || data.anonymous === 'true') ? 'sak.dnt
 
 const scriptUrl = 'https://' + domain + '/' +
                   encodeUriComponent(data.publisherId) +
-                  '/launcher.js';
+                  '/launcher.js' + (!data.anonymous && data.iabConsent ? '?iab_consent=' + data.iabConsentString : '');
 
 const apl = createQueue('audienceProjectLayer');
 
@@ -309,7 +309,7 @@ scenarios:
       };
     });
 
-    const scriptUrl = scriptHost + mockData.publisherId + scriptLib;
+    const scriptUrl = scriptHost + mockData.publisherId + scriptLib + '?iab_consent=abcdefgh';
 
     // Call runCode to run the template's code.
     runCode(mockData);
