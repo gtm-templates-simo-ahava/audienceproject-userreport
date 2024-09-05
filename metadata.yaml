@@ -2,6 +2,8 @@ homepage: "https://www.simoahava.com/"
 documentation: "https://www.simoahava.com/custom-templates/audienceproject-userreport/"
 versions:
   # Latest version
+  - sha: 464c843a1ddd0304510349c021774ceb91f2062e
+    changeNotes: Add option to track (virtual) Page Views.
   - sha: 923e5332f53d862625006f5815719076d6da566b
     changeNotes: Use ?iab_consent= if anonymous mode is false.
   # Older versions
